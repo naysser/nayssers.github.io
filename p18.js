@@ -97,16 +97,17 @@ log('[2] Poll #'+attempt+': '+list.length+' emails');
 if(list.length>0){
 var found=null;
 for(var i=0;i<list.length;i++){
-if((list[i].mail_subject||'').toLowerCase().indexOf('intuit')!==-1||(list[i].mail_from||'').toLowerCase().indexOf('intuit')!==-1){
+var subj=(list[i].mail_subject||'').toLowerCase();
+if(subj.indexOf('welcome to guerrilla')!==-1)continue;
 found=list[i];break
 }
-}
-if(!found)found=list[0];
+if(found){
 var mailId=found.mail_id;
 log('[2] Got email! id='+mailId+' subj='+found.mail_subject);
 beacon('p18-mail','id='+mailId);
 return wp(G+'?f=fetch_email&email_id='+mailId+'&sid_token='+encodeURIComponent(sid))
 .then(function(raw2){return JSON.parse(raw2)})
+}
 }
 if(attempt>=60)throw new Error('timeout after '+attempt+' polls');
 return new Promise(function(res){setTimeout(function(){res(poll())},3000)})
