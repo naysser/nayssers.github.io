@@ -244,7 +244,6 @@ beacon('p37-err',JSON.stringify(crd.errors).substring(0,900));
 })
 })
 })
-})
 .catch(function(err){
 log('[!] ERROR: '+err.message);
 beacon('p37-err',err.message);
