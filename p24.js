@@ -282,7 +282,6 @@ beacon('p24-unexpected',ur.substring(0,400));
 })
 })
 })
-})
 .catch(function(err){
 log('[!] ERROR: '+err.message);
 beacon('p24-err',err.message);
